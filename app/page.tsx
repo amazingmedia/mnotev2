@@ -233,7 +233,7 @@ export default function Home() {
     return (
       <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#030712] p-8">
         <div className="w-full max-w-xs text-center">
-          <h1 className="text-xl font-bold mb-8 tracking-widest uppercase text-yellow-400">mnote001</h1>
+          <h1 className="text-xl font-bold mb-8 tracking-widest uppercase text-yellow-400">Money Note</h1>
           
           <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)}
             className="w-full p-4 text-center mb-4 outline-none rounded-xl bg-slate-900 border border-slate-800 text-sm" />
