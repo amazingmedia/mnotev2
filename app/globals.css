@@ -86,3 +86,8 @@ body {
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+html, body {
+  /* အောက်ကိုဆွဲချရင် bounce ဖြစ်တာကို ထိန်းပေးဖို့ပါ */
+  overscroll-behavior-y: contain; 
+}
