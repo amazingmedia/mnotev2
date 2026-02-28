@@ -1,6 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+// Initialize Supabase Client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 const PIN = "1234";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -10,8 +16,11 @@ export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loginPass, setLoginPass] = useState("");
 
-  const [wallets, setWallets] = useState<any>({ "အိမ်သုံးစရိတ်": [] });
+  const [books, setBooks] = useState<string[]>(["အိမ်သုံးစရိတ်"]);
   const [currentBook, setCurrentBook] = useState("အိမ်သုံးစရိတ်");
+  const [entries, setEntries] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
   const [currentType, setCurrentType] = useState("all");
   const [filterMonth, setFilterMonth] = useState<string>("all");
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
@@ -29,59 +38,80 @@ export default function Home() {
   const [newBookName, setNewBookName] = useState("");
   const [renameInput, setRenameInput] = useState("");
 
+  // 1. Initial Load (Books from LocalStorage)
   useEffect(() => {
     setIsMounted(true);
-    const storedWallets = JSON.parse(localStorage.getItem('mnote_wallets_v2') || 'null');
-    if (storedWallets) setWallets(storedWallets);
+    const storedBooks = JSON.parse(localStorage.getItem('mnote_books') || 'null');
+    const storedActiveBook = localStorage.getItem('mnote_active_book');
     
-    const storedBook = localStorage.getItem('mnote_active_book');
-    if (storedBook && storedWallets && storedWallets[storedBook]) {
-      setCurrentBook(storedBook);
+    if (storedBooks && storedBooks.length > 0) setBooks(storedBooks);
+    if (storedActiveBook && storedBooks?.includes(storedActiveBook)) {
+      setCurrentBook(storedActiveBook);
     }
   }, []);
 
+  // 2. Fetch Entries from Supabase when Book changes
   useEffect(() => {
-    if (isMounted) {
-      localStorage.setItem('mnote_wallets_v2', JSON.stringify(wallets));
-      localStorage.setItem('mnote_active_book', currentBook);
-    }
-  }, [wallets, currentBook, isMounted]);
+    if (!isMounted || !currentBook) return;
+    localStorage.setItem('mnote_books', JSON.stringify(books));
+    localStorage.setItem('mnote_active_book', currentBook);
+    fetchEntries();
+  }, [currentBook, books, isMounted]);
 
-  if (!isMounted) return null; // Prevent hydration errors
+  const fetchEntries = async () => {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('entries')
+      .select('*')
+      .eq('book_name', currentBook)
+      .order('id', { ascending: false });
+
+    if (!error && data) {
+      setEntries(data);
+    } else {
+      console.error("Error fetching data:", error);
+    }
+    setIsLoading(false);
+  };
+
+  if (!isMounted) return null;
 
   const handleLogin = () => {
     if (loginPass === PIN) setIsLoggedIn(true);
   };
 
+  // --- Book Management ---
   const createNewBook = () => {
     const name = newBookName.trim();
-    if (!name || wallets[name]) return;
-    setWallets({ ...wallets, [name]: [] });
+    if (!name || books.includes(name)) return;
+    setBooks([...books, name]);
     setCurrentBook(name);
     setNewBookName("");
     setIsBookModalOpen(false);
   };
 
-  const renameBook = () => {
+  const renameBook = async () => {
     const newName = renameInput.trim();
-    if (!newName || newName === currentBook || wallets[newName]) return setIsRenameModalOpen(false);
+    if (!newName || newName === currentBook || books.includes(newName)) return setIsRenameModalOpen(false);
     
-    const updatedWallets = { ...wallets };
-    updatedWallets[newName] = updatedWallets[currentBook];
-    delete updatedWallets[currentBook];
+    // Update Book Name in Supabase
+    await supabase.from('entries').update({ book_name: newName }).eq('book_name', currentBook);
     
-    setWallets(updatedWallets);
+    // Update Local State
+    const updatedBooks = books.map(b => b === currentBook ? newName : b);
+    setBooks(updatedBooks);
     setCurrentBook(newName);
     setIsRenameModalOpen(false);
   };
 
+  // --- Entry Management ---
   const openEntryModal = (id: number | null = null) => {
     if (id) {
-      const item = wallets[currentBook].find((i: any) => i.id === id);
+      const item = entries.find((i: any) => i.id === id);
       setEditId(id);
-      setEntryDesc(item.desc);
+      setEntryDesc(item.desc_text);
       setEntryAmt(item.amt.toString());
-      setEntryType(item.type);
+      setEntryType(item.entry_type);
     } else {
       setEditId(null);
       setEntryDesc("");
@@ -91,59 +121,67 @@ export default function Home() {
     setIsEntryModalOpen(true);
   };
 
-  const saveEntry = () => {
+  const saveEntry = async () => {
     const amt = parseFloat(entryAmt);
     if (!entryDesc || isNaN(amt)) return;
-
-    const currentEntries = [...(wallets[currentBook] || [])];
+    setIsLoading(true);
 
     if (editId) {
-      const idx = currentEntries.findIndex(i => i.id === editId);
-      currentEntries[idx] = { ...currentEntries[idx], desc: entryDesc, amt, type: entryType };
+      // Update existing
+      await supabase.from('entries').update({
+        desc_text: entryDesc,
+        amt: amt,
+        entry_type: entryType
+      }).eq('id', editId);
     } else {
+      // Insert new
       const now = new Date();
-      currentEntries.unshift({
-        id: Date.now(), desc: entryDesc, amt, type: entryType,
-        dateStr: now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-        month: now.getMonth().toString(), year: now.getFullYear().toString()
-      });
+      await supabase.from('entries').insert([{
+        book_name: currentBook,
+        desc_text: entryDesc,
+        amt: amt,
+        entry_type: entryType,
+        date_str: now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+        month_str: now.getMonth().toString(),
+        year_str: now.getFullYear().toString()
+      }]);
     }
 
-    setWallets({ ...wallets, [currentBook]: currentEntries });
     setIsEntryModalOpen(false);
+    fetchEntries(); // Refresh data
   };
 
-  const deleteEntry = (id: number) => {
+  const deleteEntry = async (id: number) => {
     if (window.confirm('Delete?')) {
-      const filtered = wallets[currentBook].filter((i: any) => i.id !== id);
-      setWallets({ ...wallets, [currentBook]: filtered });
+      setIsLoading(true);
+      await supabase.from('entries').delete().eq('id', id);
+      fetchEntries();
     }
   };
 
   const exportData = () => {
     let csv = "Date,Description,Type,Amount\n";
-    wallets[currentBook].forEach((i: any) => csv += `${i.dateStr},${i.desc},${i.type},${i.amt}\n`);
+    entries.forEach((i: any) => csv += `${i.date_str},${i.desc_text},${i.entry_type},${i.amt}\n`);
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `${currentBook}.csv`; a.click();
   };
 
-  // Derived calculations
-  const currentEntries = wallets[currentBook] || [];
-  const years = [...new Set(currentEntries.map((i: any) => i.year))];
+  // --- Derived Calculations ---
+  const years = [...new Set(entries.map((i: any) => i.year_str))];
   if (!years.includes(new Date().getFullYear().toString())) years.push(new Date().getFullYear().toString());
   years.sort((a: any, b: any) => b - a);
 
-  const filteredEntries = currentEntries.filter((i: any) => {
-    const mMatch = filterMonth === 'all' || i.month === filterMonth;
-    const yMatch = i.year === filterYear;
-    const tMatch = currentType === 'all' || i.type === currentType;
+  const filteredEntries = entries.filter((i: any) => {
+    const mMatch = filterMonth === 'all' || i.month_str === filterMonth;
+    const yMatch = i.year_str === filterYear;
+    const tMatch = currentType === 'all' || i.entry_type === currentType;
     return mMatch && yMatch && tMatch;
   });
 
   let incTotal = 0, expTotal = 0;
-  currentEntries.filter((i: any) => (filterMonth === 'all' || i.month === filterMonth) && i.year === filterYear).forEach((i: any) => {
-    if (i.type === 'income') incTotal += i.amt; else expTotal += i.amt;
+  entries.filter((i: any) => (filterMonth === 'all' || i.month_str === filterMonth) && i.year_str === filterYear).forEach((i: any) => {
+    if (i.entry_type === 'income') incTotal += parseFloat(i.amt); else expTotal += parseFloat(i.amt);
   });
 
   if (!isLoggedIn) {
@@ -165,7 +203,7 @@ export default function Home() {
         <div className="flex justify-between items-center px-1 mb-2">
           <div className="flex items-center gap-1">
             <select value={currentBook} onChange={(e) => setCurrentBook(e.target.value)} className="bg-transparent border-none text-yellow-400 font-bold text-base focus:ring-0 p-0 pr-6 max-w-[150px] truncate">
-              {Object.keys(wallets).map(name => <option key={name} value={name}>{name}</option>)}
+              {books.map(name => <option key={name} value={name}>{name}</option>)}
             </select>
             <button onClick={() => { setRenameInput(currentBook); setIsRenameModalOpen(true); }} className="text-slate-500 text-xs p-1"><i className="fa-solid fa-pen"></i></button>
             <button onClick={() => setIsBookModalOpen(true)} className="text-slate-500 text-xs p-1"><i className="fa-solid fa-folder-plus"></i></button>
@@ -188,7 +226,7 @@ export default function Home() {
 
       <main className="p-4 space-y-4">
         <div className="p-6 rounded-[2rem] balance-gradient shadow-2xl relative overflow-hidden">
-          <p className="text-white/70 text-[9px] font-bold uppercase tracking-widest mb-1">{currentBook} Balance</p>
+          <p className="text-white/70 text-[9px] font-bold uppercase tracking-widest mb-1">{currentBook} Balance {isLoading && "(Syncing...)"}</p>
           <h1 className="text-5xl font-extrabold text-white tracking-tighter mb-5">{(incTotal - expTotal).toLocaleString()}</h1>
           <div className="flex gap-4 pt-4 border-t border-white/10">
             <div className="flex-1"><p className="text-[8px] text-white/60 uppercase">In</p><p className="text-sm font-bold text-green-300">+{incTotal.toLocaleString()}</p></div>
@@ -202,17 +240,18 @@ export default function Home() {
           <button onClick={() => setCurrentType('expense')} className={`filter-tab ${currentType === 'expense' ? 'tab-active' : ''}`}>Expense</button>
         </div>
 
-        <div className="space-y-1">
+        <div className="space-y-1 opacity-90 transition-opacity" style={{ opacity: isLoading ? 0.5 : 1 }}>
+          {filteredEntries.length === 0 && !isLoading && <p className="text-center text-slate-500 text-sm mt-10">မှတ်တမ်းမရှိသေးပါ။</p>}
           {filteredEntries.map((item: any) => (
             <div key={item.id} className="p-5 list-card rounded-2xl flex justify-between items-center" onClick={() => openEntryModal(item.id)}>
               <div className="flex items-center gap-4">
-                <div className={`w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center ${item.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
-                  <i className={`fa-solid ${item.type === 'income' ? 'fa-arrow-up' : 'fa-arrow-down'} text-[11px]`}></i>
+                <div className={`w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center ${item.entry_type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                  <i className={`fa-solid ${item.entry_type === 'income' ? 'fa-arrow-up' : 'fa-arrow-down'} text-[11px]`}></i>
                 </div>
-                <div><h4 className="font-semibold text-[15px] text-white tracking-tight">{item.desc}</h4><p className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">{item.dateStr}</p></div>
+                <div><h4 className="font-semibold text-[15px] text-white tracking-tight">{item.desc_text}</h4><p className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">{item.date_str}</p></div>
               </div>
               <div className="flex items-center gap-4">
-                <span className={`font-bold text-[16px] ${item.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>{item.amt.toLocaleString()}</span>
+                <span className={`font-bold text-[16px] ${item.entry_type === 'income' ? 'text-green-400' : 'text-red-400'}`}>{item.amt.toLocaleString()}</span>
                 <button onClick={(e) => { e.stopPropagation(); deleteEntry(item.id); }} className="text-slate-700 p-2 ml-1"><i className="fa-solid fa-trash-can text-sm"></i></button>
               </div>
             </div>
@@ -220,7 +259,7 @@ export default function Home() {
         </div>
       </main>
 
-      <button onClick={() => openEntryModal()} className="fixed bottom-6 right-6 w-14 h-14 bg-yellow-400 text-black rounded-2xl shadow-xl z-50 flex items-center justify-center text-xl active:scale-90 transition"><i className="fa-solid fa-plus"></i></button>
+      <button onClick={() => openEntryModal()} className="fixed bottom-6 right-6 w-14 h-14 bg-yellow-400 text-black rounded-2xl shadow-xl z-50 flex items-center justify-center text-xl active:scale-90 transition disabled:opacity-50" disabled={isLoading}><i className="fa-solid fa-plus"></i></button>
 
       {/* Entry Modal */}
       {isEntryModalOpen && (
@@ -239,7 +278,7 @@ export default function Home() {
                   <option value="income">In (+)</option>
                 </select>
               </div>
-              <button onClick={saveEntry} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold">Confirm</button>
+              <button onClick={saveEntry} disabled={isLoading} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold">{isLoading ? 'Saving...' : 'Confirm'}</button>
             </div>
           </div>
         </div>
