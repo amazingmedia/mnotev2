@@ -2,12 +2,22 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
+// TypeScript အတွက် Data Type ကြေညာခြင်း
+interface RecordItem {
+  id: number;
+  book_name: string;
+  description: string;
+  amount: number;
+  type: string;
+  created_at: string;
+}
+
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [pin, setPin] = useState("");
-  const [records, setRecords] = useState([]);
+  const [records, setRecords] = useState<RecordItem[]>([]);
   const [activeBook, setActiveBook] = useState("အိမ်သုံးစရိတ်");
-  const [books, setBooks] = useState(["အိမ်သုံးစရိတ်"]);
+  const [books, setBooks] = useState<string[]>(["အိမ်သုံးစရိတ်"]);
   
   // Form States
   const [desc, setDesc] = useState("");
@@ -23,14 +33,16 @@ export default function Home() {
       .eq("book_name", activeBook)
       .order("created_at", { ascending: false });
 
-    if (!error) setRecords(data);
+    if (!error && data) {
+      setRecords(data as RecordItem[]);
+    }
   };
 
   // Get unique books from database
   const fetchBooks = async () => {
     const { data, error } = await supabase.from("records").select("book_name");
-    if (!error) {
-      const uniqueBooks = [...new Set(data.map((d) => d.book_name))];
+    if (!error && data) {
+      const uniqueBooks = Array.from(new Set(data.map((d: any) => d.book_name as string)));
       if (uniqueBooks.length > 0) setBooks(uniqueBooks);
     }
   };
@@ -60,7 +72,7 @@ export default function Home() {
     }
   };
 
-  const deleteEntry = async (id) => {
+  const deleteEntry = async (id: number) => {
     if (confirm("Delete?")) {
       await supabase.from("records").delete().eq("id", id);
       fetchRecords();
