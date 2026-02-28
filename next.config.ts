@@ -1,5 +1,15 @@
 import withPWAInit from "@ducanh2912/next-pwa";
 
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // Turbopack ကို build stage မှာ disable လုပ်ဖို့
+  experimental: {
+    turbo: {
+      // Turbopack settings တွေ လိုအပ်ရင် ဒီမှာထည့်နိုင်တယ်
+    },
+  },
+};
+
 const withPWA = withPWAInit({
   dest: "public",
   cacheOnFrontEndNav: true,
@@ -7,13 +17,5 @@ const withPWA = withPWAInit({
   reloadOnOnline: true,
   disable: process.env.NODE_ENV === "development",
 });
-
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  // Turbopack နဲ့ Webpack ပြဿနာကို ရှောင်ဖို့
-  webpack: (config, { isServer }) => {
-    return config;
-  },
-};
 
 export default withPWA(nextConfig);
