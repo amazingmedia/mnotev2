@@ -198,8 +198,9 @@ export default function Home() {
   }
 
   return (
-    <>
-      <header className="p-3 sticky top-0 z-40 bg-[#030712]/90 backdrop-blur-md border-b border-white/5">
+    <div className="flex flex-col h-[100dvh] bg-[#030712] overflow-hidden">
+      {/* 1. Header (Fixed at top) */}
+      <header className="flex-none p-3 z-40 bg-[#030712]/90 backdrop-blur-md border-b border-white/5">
         <div className="flex justify-between items-center px-1 mb-2">
           <div className="flex items-center gap-1">
             <select value={currentBook} onChange={(e) => setCurrentBook(e.target.value)} className="bg-transparent border-none text-yellow-400 font-bold text-base focus:ring-0 p-0 pr-6 max-w-[150px] truncate">
@@ -224,7 +225,8 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="p-4 space-y-4">
+      {/* 2. Balance Card & Filter Tabs (Fixed) */}
+      <div className="flex-none p-4 pb-2 space-y-4">
         <div className="p-6 rounded-[2rem] balance-gradient shadow-2xl relative overflow-hidden">
           <p className="text-white/70 text-[9px] font-bold uppercase tracking-widest mb-1">{currentBook} Balance {isLoading && "(Syncing...)"}</p>
           <h1 className="text-5xl font-extrabold text-white tracking-tighter mb-5">{(incTotal - expTotal).toLocaleString()}</h1>
@@ -239,8 +241,11 @@ export default function Home() {
           <button onClick={() => setCurrentType('income')} className={`filter-tab ${currentType === 'income' ? 'tab-active' : ''}`}>Income</button>
           <button onClick={() => setCurrentType('expense')} className={`filter-tab ${currentType === 'expense' ? 'tab-active' : ''}`}>Expense</button>
         </div>
+      </div>
 
-        <div className="space-y-1 opacity-90 transition-opacity" style={{ opacity: isLoading ? 0.5 : 1 }}>
+      {/* 3. Records List (Scrollable Area) */}
+      <main className="flex-1 overflow-y-auto px-4 pb-28 space-y-1 no-scrollbar relative">
+        <div className="opacity-90 transition-opacity" style={{ opacity: isLoading ? 0.5 : 1 }}>
           {filteredEntries.length === 0 && !isLoading && <p className="text-center text-slate-500 text-sm mt-10">မှတ်တမ်းမရှိသေးပါ။</p>}
           {filteredEntries.map((item: any) => (
             <div key={item.id} className="p-5 list-card rounded-2xl flex justify-between items-center" onClick={() => openEntryModal(item.id)}>
@@ -259,6 +264,7 @@ export default function Home() {
         </div>
       </main>
 
+      {/* Floating Button */}
       <button onClick={() => openEntryModal()} className="fixed bottom-6 right-6 w-14 h-14 bg-yellow-400 text-black rounded-2xl shadow-xl z-50 flex items-center justify-center text-xl active:scale-90 transition disabled:opacity-50" disabled={isLoading}><i className="fa-solid fa-plus"></i></button>
 
       {/* Entry Modal */}
@@ -311,6 +317,6 @@ export default function Home() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
