@@ -39,6 +39,37 @@ export default function Home() {
   const [filterMonth, setFilterMonth] = useState<string>("all");
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
 
+
+// --- Pull-to-Refresh Logic ---
+  const [startY, setStartY] = useState(0);
+
+  useEffect(() => {
+    const handleTouchStart = (e: TouchEvent) => {
+      // Screen ရဲ့ အပေါ်ဆုံးမှာ ရှိနေမှ (Scroll top က သုညဖြစ်နေမှ) အလုပ်လုပ်မယ်
+      if (window.scrollY === 0) {
+        setStartY(e.touches[0].pageY);
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      const endY = e.changedTouches[0].pageY;
+      // အောက်ကို အနည်းဆုံး 150px ဆွဲချရင် refresh လုပ်မယ်
+      if (window.scrollY === 0 && endY - startY > 150) {
+        window.location.reload();
+      }
+    };
+
+    window.addEventListener("touchstart", handleTouchStart);
+    window.addEventListener("touchend", handleTouchEnd);
+
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [startY]);
+
+  
+
   useEffect(() => {
     setIsMounted(true);
     supabase.auth.getSession().then(({ data: { session } }) => {
