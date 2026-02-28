@@ -19,7 +19,13 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [authMessage, setAuthMessage] = useState(""); // For success messages
   const [isSignUp, setIsSignUp] = useState(false);
+  
+  // Forgot Password States
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
 
   // App States
   const [books, setBooks] = useState<string[]>(["အိမ်သုံးစရိတ်"]);
@@ -51,7 +57,11 @@ export default function Home() {
       setUser(session?.user ?? null);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Check if user is coming from a password reset email link
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsResettingPassword(true);
+      }
       setUser(session?.user ?? null);
     });
 
@@ -103,18 +113,20 @@ export default function Home() {
     if (!email || !password) return setAuthError("Email and Password required");
     setAuthLoading(true);
     setAuthError("");
+    setAuthMessage("");
 
     let error;
     if (isSignUp) {
       const { error: signUpErr } = await supabase.auth.signUp({ email, password });
       error = signUpErr;
+      if (!error) setAuthMessage("Please check your email to verify your account.");
     } else {
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
       error = signInErr;
     }
 
     if (error) setAuthError(error.message);
-    else {
+    else if (!isSignUp) {
       setEmail("");
       setPassword("");
     }
@@ -125,6 +137,38 @@ export default function Home() {
     await supabase.auth.signOut();
     setUser(null);
     setEntries([]);
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) return setAuthError("Please enter your email");
+    setAuthLoading(true);
+    setAuthError("");
+    setAuthMessage("");
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin, // Redirects back to the current website
+    });
+
+    if (error) setAuthError(error.message);
+    else setAuthMessage("Password reset link sent to your email.");
+    setAuthLoading(false);
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!newPassword) return setAuthError("Please enter a new password");
+    setAuthLoading(true);
+    setAuthError("");
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+    if (error) {
+      setAuthError(error.message);
+    } else {
+      setAuthMessage("Password updated successfully!");
+      setIsResettingPassword(false);
+      setNewPassword("");
+    }
+    setAuthLoading(false);
   };
 
   // --- Book Management ---
@@ -180,7 +224,7 @@ export default function Home() {
     } else {
       const now = new Date();
       await supabase.from('entries').insert([{
-        user_id: user.id, // Save with User ID
+        user_id: user.id,
         book_name: currentBook,
         desc_text: entryDesc,
         amt: amt,
@@ -228,30 +272,81 @@ export default function Home() {
     if (i.entry_type === 'income') incTotal += parseFloat(i.amt); else expTotal += parseFloat(i.amt);
   });
 
-  // --- Auth UI ---
+  // --- Update Password UI (When clicking link from email) ---
+  if (isResettingPassword) {
+    return (
+      <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#030712] p-8">
+        <div className="w-full max-w-xs text-center">
+          <h1 className="text-xl font-bold mb-8 tracking-widest uppercase text-yellow-400">Set New Password</h1>
+          
+          <input type="password" placeholder="Enter new password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+            className="w-full p-4 text-center mb-6 outline-none rounded-xl bg-slate-900 border border-slate-800 text-sm" />
+          
+          {authError && <p className="text-red-400 text-xs mb-4">{authError}</p>}
+          {authMessage && <p className="text-green-400 text-xs mb-4">{authMessage}</p>}
+
+          <button onClick={handleUpdatePassword} disabled={authLoading} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-6 disabled:opacity-50">
+            {authLoading ? "Updating..." : "Update Password"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Auth UI (Login / Sign Up / Forgot Password) ---
   if (!user) {
     return (
       <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#030712] p-8">
         <div className="w-full max-w-xs text-center">
           <h1 className="text-xl font-bold mb-8 tracking-widest uppercase text-yellow-400">Money Note</h1>
           
-          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-4 text-center mb-4 outline-none rounded-xl bg-slate-900 border border-slate-800 text-sm" />
-          <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-4 text-center mb-6 outline-none rounded-xl bg-slate-900 border border-slate-800 text-sm" />
-          
-          {authError && <p className="text-red-400 text-xs mb-4">{authError}</p>}
+          {isForgotPassword ? (
+            // Forgot Password View
+            <>
+              <p className="text-slate-400 text-xs mb-4">Enter your email to receive a password reset link.</p>
+              <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)}
+                className="w-full p-4 text-center mb-6 outline-none rounded-xl bg-slate-900 border border-slate-800 text-sm" />
+              
+              {authError && <p className="text-red-400 text-xs mb-4">{authError}</p>}
+              {authMessage && <p className="text-green-400 text-xs mb-4">{authMessage}</p>}
 
-          <button onClick={handleAuth} disabled={authLoading} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-6 disabled:opacity-50">
-            {authLoading ? "Please wait..." : (isSignUp ? "Sign Up" : "Login")}
-          </button>
-          
-          <p className="text-sm text-slate-500">
-            {isSignUp ? "Already have an account? " : "Don't have an account? "}
-            <button onClick={() => { setIsSignUp(!isSignUp); setAuthError(""); }} className="text-yellow-400 font-bold">
-              {isSignUp ? "Login" : "Sign Up"}
-            </button>
-          </p>
+              <button onClick={handleForgotPassword} disabled={authLoading} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-6 disabled:opacity-50">
+                {authLoading ? "Sending..." : "Send Reset Link"}
+              </button>
+              
+              <button onClick={() => { setIsForgotPassword(false); setAuthError(""); setAuthMessage(""); }} className="text-sm text-slate-500 hover:text-white">
+                Back to Login
+              </button>
+            </>
+          ) : (
+            // Login / Sign Up View
+            <>
+              <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)}
+                className="w-full p-4 text-center mb-4 outline-none rounded-xl bg-slate-900 border border-slate-800 text-sm" />
+              <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
+                className="w-full p-4 text-center mb-6 outline-none rounded-xl bg-slate-900 border border-slate-800 text-sm" />
+              
+              {authError && <p className="text-red-400 text-xs mb-4">{authError}</p>}
+              {authMessage && <p className="text-green-400 text-xs mb-4">{authMessage}</p>}
+
+              <button onClick={handleAuth} disabled={authLoading} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-4 disabled:opacity-50">
+                {authLoading ? "Please wait..." : (isSignUp ? "Sign Up" : "Login")}
+              </button>
+              
+              {!isSignUp && (
+                <button onClick={() => { setIsForgotPassword(true); setAuthError(""); setAuthMessage(""); }} className="text-xs text-slate-500 mb-6 block w-full">
+                  Forgot Password?
+                </button>
+              )}
+
+              <p className="text-sm text-slate-500">
+                {isSignUp ? "Already have an account? " : "Don't have an account? "}
+                <button onClick={() => { setIsSignUp(!isSignUp); setAuthError(""); setAuthMessage(""); }} className="text-yellow-400 font-bold">
+                  {isSignUp ? "Login" : "Sign Up"}
+                </button>
+              </p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -325,7 +420,6 @@ export default function Home() {
 
       <button onClick={() => openEntryModal()} className="fixed bottom-6 right-6 w-14 h-14 bg-yellow-400 text-black rounded-2xl shadow-xl z-50 flex items-center justify-center text-xl active:scale-90 transition disabled:opacity-50" disabled={isLoading}><i className="fa-solid fa-plus"></i></button>
 
-      {/* Modals are kept same, just rendering logic handles state */}
       {isEntryModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content p-6 shadow-2xl">
