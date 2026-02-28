@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
-// TypeScript အတွက် Data Type ကြေညာခြင်း
+// TypeScript အတွက် Data Type ကြေညာခြင်း-
 interface RecordItem {
   id: number;
   book_name: string;
