@@ -43,24 +43,30 @@ export default function Home() {
   const [startY, setStartY] = useState(0);
 
   useEffect(() => {
+    const mainEl = document.querySelector('main');
+    if (!mainEl) return;
+
     const handleTouchStart = (e: TouchEvent) => {
-      if (window.scrollY === 0) {
+      // Main element ရဲ့ scroll က ထိပ်ဆုံးမှာ ရှိနေမှ မှတ်မယ်
+      if (mainEl.scrollTop === 0) {
         setStartY(e.touches[0].pageY);
       }
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
       const endY = e.changedTouches[0].pageY;
-      if (window.scrollY === 0 && endY - startY > 150) {
+      const distance = endY - startY;
+      // အောက်ကို အနည်းဆုံး 150px ဆွဲချရင် reload လုပ်မယ်
+      if (mainEl.scrollTop === 0 && distance > 150) {
         window.location.reload();
       }
     };
 
-    window.addEventListener("touchstart", handleTouchStart);
-    window.addEventListener("touchend", handleTouchEnd);
+    mainEl.addEventListener("touchstart", handleTouchStart);
+    mainEl.addEventListener("touchend", handleTouchEnd);
     return () => {
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchend", handleTouchEnd);
+      mainEl.removeEventListener("touchstart", handleTouchStart);
+      mainEl.removeEventListener("touchend", handleTouchEnd);
     };
   }, [startY]);
 
@@ -196,11 +202,11 @@ export default function Home() {
 
   if (!user) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-[#030712] p-8">
-        <div className="w-full max-w-xs text-center text-yellow-400">
+      <div className="fixed inset-0 flex items-center justify-center bg-[#030712] z-[100]">
+        <div className="w-full max-w-xs text-center text-yellow-400 p-8">
           <h1 className="text-xl font-bold mb-8 uppercase tracking-widest">Money Note</h1>
-          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-4 mb-4 rounded-xl bg-slate-900 border border-slate-800 text-white" />
-          <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-4 mb-6 rounded-xl bg-slate-900 border border-slate-800 text-white" />
+          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-4 mb-4 rounded-xl" />
+          <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-4 mb-6 rounded-xl" />
           {authError && <p className="text-red-400 text-xs mb-4">{authError}</p>}
           <button onClick={handleAuth} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-6 uppercase">{isSignUp ? "Sign Up" : "Login"}</button>
           <button onClick={() => setIsSignUp(!isSignUp)} className="text-sm text-slate-500">{isSignUp ? "Already have account? Login" : "No account? Sign Up"}</button>
@@ -222,8 +228,8 @@ export default function Home() {
   });
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-[#030712] overflow-hidden">
-      <header className="flex-none p-3 z-40 bg-[#030712]/90 backdrop-blur-md border-b border-white/5 pt-[env(safe-area-inset-top)]">
+    <div className="flex flex-col h-full w-full bg-[#030712]">
+      <header className="flex-none p-3 z-40 bg-[#030712]/90 backdrop-blur-md border-b border-white/5">
         <div className="flex justify-between items-center px-1 mb-2">
           <div className="flex items-center gap-1">
             <select value={currentBook} onChange={(e) => setCurrentBook(e.target.value)} className="bg-transparent text-yellow-400 font-bold border-none focus:ring-0 truncate max-w-[150px]">
@@ -235,11 +241,11 @@ export default function Home() {
           <button onClick={() => supabase.auth.signOut()} className="text-red-400 text-sm"><i className="fa-solid fa-power-off"></i></button>
         </div>
         <div className="flex gap-1.5">
-          <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="p-1.5 text-[10px] flex-1 bg-slate-900 text-white rounded-lg border-none outline-none">
+          <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="p-1.5 text-[10px] flex-1">
             <option value="all">All Months</option>
             {MONTHS.map((m, i) => <option key={i} value={i.toString()}>{m}</option>)}
           </select>
-          <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="p-1.5 text-[10px] w-20 bg-slate-900 text-white rounded-lg border-none outline-none">
+          <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="p-1.5 text-[10px] w-20">
             <option value="2026">2026</option>
           </select>
         </div>
@@ -261,7 +267,7 @@ export default function Home() {
         </div>
       </div>
 
-      <main className="flex-1 overflow-y-auto px-4 pb-28 space-y-1 no-scrollbar relative">
+      <main className="flex-1 px-4 pb-28 space-y-1 no-scrollbar relative">
         <div className="opacity-90 transition-opacity" style={{ opacity: isLoading ? 0.5 : 1 }}>
           {filteredEntries.length === 0 && !isLoading && <p className="text-center text-slate-500 text-sm mt-10">မှတ်တမ်းမရှိသေးပါ။</p>}
           {filteredEntries.map((item: any) => (
@@ -281,8 +287,9 @@ export default function Home() {
         </div>
       </main>
 
-      <button onClick={() => { setEditId(null); setEntryDesc(""); setEntryAmt(""); setIsEntryModalOpen(true); }} className="fixed bottom-6 right-6 w-14 h-14 bg-yellow-400 text-black rounded-2xl shadow-xl z-50 flex items-center justify-center text-xl active:scale-90 transition"><i className="fa-solid fa-plus"></i></button>
+      <button onClick={() => { setEditId(null); setEntryDesc(""); setEntryAmt(""); setIsEntryModalOpen(true); }} className="fixed bottom-10 right-6 w-14 h-14 bg-yellow-400 text-black rounded-2xl shadow-xl z-50 flex items-center justify-center text-xl active:scale-90 transition"><i className="fa-solid fa-plus"></i></button>
 
+      {/* Entry Modal */}
       {isEntryModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content p-6 shadow-2xl">
@@ -302,6 +309,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* Book Modal */}
       {isBookModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content p-8 shadow-2xl">
@@ -315,6 +323,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* Rename Modal */}
       {isRenameModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content p-8 shadow-2xl">
