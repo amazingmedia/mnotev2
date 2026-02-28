@@ -13,13 +13,13 @@ export const viewport: Viewport = {
 
 // PWA Metadata များ
 export const metadata: Metadata = {
-  title: "mnote001 | Multi-Book Pro",
+  title: "Money Note | Multi-Book Pro",
   description: "Personal Finance Tracker",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "mnote001",
+    title: "Money Note",
   },
   formatDetection: {
     telephone: false,
