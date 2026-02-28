@@ -10,7 +10,10 @@ const withPWA = withPWAInit({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // တခြား config တွေရှိရင် ဒီထဲမှာ ထည့်ပါ
+  // Turbopack နဲ့ Webpack ပြဿနာကို ရှောင်ဖို့
+  webpack: (config, { isServer }) => {
+    return config;
+  },
 };
 
 export default withPWA(nextConfig);
