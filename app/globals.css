@@ -5,11 +5,42 @@
   --bg: #030712;
 }
 
-body {
-  font-family: 'Inter', sans-serif;
+/* App တစ်ခုလုံး အောက်သို့ ကျွံမလာစေရန် (Prevent overscroll/bounce)
+   Safe area အကွာအဝေးများကိုပါ တစ်ခါတည်း တွက်ချက်ထားပါတယ်
+*/
+html, body {
+  position: fixed; /* တစ်ခုလုံးကို အသေထားမယ် */
+  overflow: hidden; /* body scroll ကို ပိတ်မယ် */
+  width: 100%;
+  height: 100%;
   background-color: var(--bg);
   color: #f1f5f9;
   -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none; /* iOS bounce ကို ပိတ်မယ် */
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  flex-direction: column;
+  /* Notch နှင့် Home bar အတွက် နေရာချန်ခြင်း */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Header ကို Notch အောက်တွင် ရှိနေစေရန် */
+header {
+  padding-top: env(safe-area-inset-top) !important;
+  z-index: 50;
+}
+
+/* စာရင်းများပြသမည့် Main အပိုင်းကိုသာ scroll ဖြစ်ခွင့်ပေးခြင်း
+   ဒါမှသာ Pull-to-refresh logic က ပုံမှန်အလုပ်လုပ်မှာပါ
+*/
+main {
+  flex: 1;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
 }
 
 .balance-gradient {
@@ -57,7 +88,8 @@ body {
   background-color: #111827;
   border-radius: 1.5rem 1.5rem 0 0;
   border-top: 1px solid rgba(168, 85, 247, 0.3);
-  padding-bottom: env(safe-area-inset-bottom);
+  /* Modal အောက်ခြေတွင် Home bar အတွက် နေရာချန်ခြင်း */
+  padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -70,24 +102,5 @@ input, select {
   border: 1px solid #374151 !important;
   color: white !important;
   border-radius: 12px !important;
-  font-size: 16px !important;
-}
-
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-/* header ကို notch အောက်ရောက်အောင် အပေါ်ကနေ နေရာချန်ခိုင်းတာပါ */
-header {
-  padding-top: env(safe-area-inset-top) !important;
-}
-
-/* တစ်ခုလုံးစာ body ကိုလည်း safe area ထဲမှာပဲ ရှိနေစေဖို့ပါ */
-body {
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-html, body {
-  /* အောက်ကိုဆွဲချရင် bounce ဖြစ်တာကို ထိန်းပေးဖို့ပါ */
-  overscroll-behavior-y: contain; 
+  font-size: 16px !important; /* Mobile မှာ zoom မဖြစ်သွားအောင် ၁၆ ထားရပါမယ် */
 }
