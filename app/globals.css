@@ -76,3 +76,13 @@ input, select {
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }
+/* header ကို notch အောက်ရောက်အောင် အပေါ်ကနေ နေရာချန်ခိုင်းတာပါ */
+header {
+  padding-top: env(safe-area-inset-top) !important;
+}
+
+/* တစ်ခုလုံးစာ body ကိုလည်း safe area ထဲမှာပဲ ရှိနေစေဖို့ပါ */
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
