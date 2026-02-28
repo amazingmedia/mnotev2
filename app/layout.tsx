@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "mnote001 | Multi-Book Pro",
+  title: "Money Notes | Multi-Book Pro",
   description: "Personal Finance Tracker",
 };
 
