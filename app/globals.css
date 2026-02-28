@@ -1,44 +1,63 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer base {
-  :root {
-    --gold: #facc15;
-    --bg: #030712;
-  }
-  body {
-    font-family: 'Inter', sans-serif;
-    background-color: var(--bg);
-    color: #f1f5f9;
-    -webkit-tap-highlight-color: transparent;
-  }
+:root {
+  --gold: #facc15;
+  --bg: #030712;
 }
 
-@layer components {
-  .balance-gradient {
-    background: linear-gradient(135deg, #1d4ed8 0%, #a855f7 100%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  .filter-tab {
-    @apply px-3 py-2 rounded-[10px] text-[11px] font-semibold text-slate-400 border border-slate-800 transition-all duration-200;
-  }
-  .tab-active {
-    background: rgba(168, 85, 247, 0.2);
-    border-color: #a855f7;
-    color: #d8b4fe;
-  }
-  .list-card {
-    background: rgba(31, 41, 55, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.03);
-    margin-bottom: 8px;
-  }
-  .modal-overlay {
-    @apply fixed inset-0 z-[100] bg-black/80 backdrop-blur-[5px] flex flex-col justify-end items-center;
-  }
-  .modal-content {
-    @apply w-full max-w-[450px] bg-gray-900 rounded-t-3xl border-t border-purple-500/30 pb-safe;
-  }
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg);
+  color: #f1f5f9;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.balance-gradient {
+  background: linear-gradient(135deg, #1d4ed8 0%, #a855f7 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.filter-tab {
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  border: 1px solid #1e293b;
+  transition: all 0.2s;
+}
+
+.tab-active {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: #a855f7;
+  color: #d8b4fe;
+}
+
+.list-card {
+  background: rgba(31, 41, 55, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  margin-bottom: 8px;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(5px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.modal-content {
+  width: 100%;
+  max-width: 450px;
+  background-color: #111827;
+  border-radius: 1.5rem 1.5rem 0 0;
+  border-top: 1px solid rgba(168, 85, 247, 0.3);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -53,6 +72,7 @@ input, select {
   border-radius: 12px !important;
   font-size: 16px !important;
 }
+
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }
