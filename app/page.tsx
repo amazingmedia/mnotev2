@@ -8,14 +8,20 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const PIN = "1234";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loginPass, setLoginPass] = useState("");
+  
+  // Auth States
+  const [user, setUser] = useState<any>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
 
+  // App States
   const [books, setBooks] = useState<string[]>(["အိမ်သုံးစရိတ်"]);
   const [currentBook, setCurrentBook] = useState("အိမ်သုံးစရိတ်");
   const [entries, setEntries] = useState<any[]>([]);
@@ -38,46 +44,87 @@ export default function Home() {
   const [newBookName, setNewBookName] = useState("");
   const [renameInput, setRenameInput] = useState("");
 
-  // 1. Initial Load (Books from LocalStorage)
+  // 1. Check Auth Session on Load
   useEffect(() => {
     setIsMounted(true);
-    const storedBooks = JSON.parse(localStorage.getItem('mnote_books') || 'null');
-    const storedActiveBook = localStorage.getItem('mnote_active_book');
-    
-    if (storedBooks && storedBooks.length > 0) setBooks(storedBooks);
-    if (storedActiveBook && storedBooks?.includes(storedActiveBook)) {
-      setCurrentBook(storedActiveBook);
-    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // 2. Fetch Entries from Supabase when Book changes
+  // 2. Load Books for Specific User
   useEffect(() => {
-    if (!isMounted || !currentBook) return;
-    localStorage.setItem('mnote_books', JSON.stringify(books));
-    localStorage.setItem('mnote_active_book', currentBook);
+    if (!user) return;
+    const storedBooks = JSON.parse(localStorage.getItem(`mnote_books_${user.id}`) || 'null');
+    const storedActiveBook = localStorage.getItem(`mnote_active_book_${user.id}`);
+    
+    if (storedBooks && storedBooks.length > 0) setBooks(storedBooks);
+    else setBooks(["အိမ်သုံးစရိတ်"]);
+
+    if (storedActiveBook && storedBooks?.includes(storedActiveBook)) {
+      setCurrentBook(storedActiveBook);
+    } else {
+      setCurrentBook("အိမ်သုံးစရိတ်");
+    }
+  }, [user]);
+
+  // 3. Fetch Entries from Supabase
+  useEffect(() => {
+    if (!user || !currentBook) return;
+    localStorage.setItem(`mnote_books_${user.id}`, JSON.stringify(books));
+    localStorage.setItem(`mnote_active_book_${user.id}`, currentBook);
     fetchEntries();
-  }, [currentBook, books, isMounted]);
+  }, [currentBook, books, user]);
 
   const fetchEntries = async () => {
+    if (!user) return;
     setIsLoading(true);
     const { data, error } = await supabase
       .from('entries')
       .select('*')
       .eq('book_name', currentBook)
+      .eq('user_id', user.id) // ONLY fetch this user's data
       .order('id', { ascending: false });
 
-    if (!error && data) {
-      setEntries(data);
-    } else {
-      console.error("Error fetching data:", error);
-    }
+    if (!error && data) setEntries(data);
     setIsLoading(false);
   };
 
   if (!isMounted) return null;
 
-  const handleLogin = () => {
-    if (loginPass === PIN) setIsLoggedIn(true);
+  // --- Auth Handlers ---
+  const handleAuth = async () => {
+    if (!email || !password) return setAuthError("Email and Password required");
+    setAuthLoading(true);
+    setAuthError("");
+
+    let error;
+    if (isSignUp) {
+      const { error: signUpErr } = await supabase.auth.signUp({ email, password });
+      error = signUpErr;
+    } else {
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+      error = signInErr;
+    }
+
+    if (error) setAuthError(error.message);
+    else {
+      setEmail("");
+      setPassword("");
+    }
+    setAuthLoading(false);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setEntries([]);
   };
 
   // --- Book Management ---
@@ -92,12 +139,10 @@ export default function Home() {
 
   const renameBook = async () => {
     const newName = renameInput.trim();
-    if (!newName || newName === currentBook || books.includes(newName)) return setIsRenameModalOpen(false);
+    if (!newName || newName === currentBook || books.includes(newName) || !user) return setIsRenameModalOpen(false);
     
-    // Update Book Name in Supabase
-    await supabase.from('entries').update({ book_name: newName }).eq('book_name', currentBook);
+    await supabase.from('entries').update({ book_name: newName }).eq('book_name', currentBook).eq('user_id', user.id);
     
-    // Update Local State
     const updatedBooks = books.map(b => b === currentBook ? newName : b);
     setBooks(updatedBooks);
     setCurrentBook(newName);
@@ -123,20 +168,19 @@ export default function Home() {
 
   const saveEntry = async () => {
     const amt = parseFloat(entryAmt);
-    if (!entryDesc || isNaN(amt)) return;
+    if (!entryDesc || isNaN(amt) || !user) return;
     setIsLoading(true);
 
     if (editId) {
-      // Update existing
       await supabase.from('entries').update({
         desc_text: entryDesc,
         amt: amt,
         entry_type: entryType
-      }).eq('id', editId);
+      }).eq('id', editId).eq('user_id', user.id);
     } else {
-      // Insert new
       const now = new Date();
       await supabase.from('entries').insert([{
+        user_id: user.id, // Save with User ID
         book_name: currentBook,
         desc_text: entryDesc,
         amt: amt,
@@ -148,13 +192,13 @@ export default function Home() {
     }
 
     setIsEntryModalOpen(false);
-    fetchEntries(); // Refresh data
+    fetchEntries();
   };
 
   const deleteEntry = async (id: number) => {
     if (window.confirm('Delete?')) {
       setIsLoading(true);
-      await supabase.from('entries').delete().eq('id', id);
+      await supabase.from('entries').delete().eq('id', id).eq('user_id', user.id);
       fetchEntries();
     }
   };
@@ -184,22 +228,38 @@ export default function Home() {
     if (i.entry_type === 'income') incTotal += parseFloat(i.amt); else expTotal += parseFloat(i.amt);
   });
 
-  if (!isLoggedIn) {
+  // --- Auth UI ---
+  if (!user) {
     return (
       <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#030712] p-8">
         <div className="w-full max-w-xs text-center">
           <h1 className="text-xl font-bold mb-8 tracking-widest uppercase text-yellow-400">mnote001</h1>
-          <input type="password" placeholder="PIN" value={loginPass} onChange={(e) => setLoginPass(e.target.value)}
-            className="w-full p-4 text-center text-2xl tracking-[0.5em] mb-6 outline-none rounded-xl bg-slate-900 border border-slate-800" />
-          <button onClick={handleLogin} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold">Login</button>
+          
+          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)}
+            className="w-full p-4 text-center mb-4 outline-none rounded-xl bg-slate-900 border border-slate-800 text-sm" />
+          <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
+            className="w-full p-4 text-center mb-6 outline-none rounded-xl bg-slate-900 border border-slate-800 text-sm" />
+          
+          {authError && <p className="text-red-400 text-xs mb-4">{authError}</p>}
+
+          <button onClick={handleAuth} disabled={authLoading} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-6 disabled:opacity-50">
+            {authLoading ? "Please wait..." : (isSignUp ? "Sign Up" : "Login")}
+          </button>
+          
+          <p className="text-sm text-slate-500">
+            {isSignUp ? "Already have an account? " : "Don't have an account? "}
+            <button onClick={() => { setIsSignUp(!isSignUp); setAuthError(""); }} className="text-yellow-400 font-bold">
+              {isSignUp ? "Login" : "Sign Up"}
+            </button>
+          </p>
         </div>
       </div>
     );
   }
 
+  // --- Main App UI ---
   return (
     <div className="flex flex-col h-[100dvh] bg-[#030712] overflow-hidden">
-      {/* 1. Header (Fixed at top) */}
       <header className="flex-none p-3 z-40 bg-[#030712]/90 backdrop-blur-md border-b border-white/5">
         <div className="flex justify-between items-center px-1 mb-2">
           <div className="flex items-center gap-1">
@@ -209,9 +269,10 @@ export default function Home() {
             <button onClick={() => { setRenameInput(currentBook); setIsRenameModalOpen(true); }} className="text-slate-500 text-xs p-1"><i className="fa-solid fa-pen"></i></button>
             <button onClick={() => setIsBookModalOpen(true)} className="text-slate-500 text-xs p-1"><i className="fa-solid fa-folder-plus"></i></button>
           </div>
-          <div className="flex gap-4 text-slate-400 text-sm">
+          <div className="flex items-center gap-4 text-slate-400 text-sm">
+            <span className="text-[10px] text-slate-600 truncate max-w-[80px]">{user.email}</span>
             <button onClick={exportData}><i className="fa-solid fa-file-csv"></i></button>
-            <button onClick={() => location.reload()}><i className="fa-solid fa-power-off"></i></button>
+            <button onClick={handleLogout} className="text-red-400"><i className="fa-solid fa-right-from-bracket"></i></button>
           </div>
         </div>
         <div className="flex gap-1.5">
@@ -225,7 +286,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 2. Balance Card & Filter Tabs (Fixed) */}
       <div className="flex-none p-4 pb-2 space-y-4">
         <div className="p-6 rounded-[2rem] balance-gradient shadow-2xl relative overflow-hidden">
           <p className="text-white/70 text-[9px] font-bold uppercase tracking-widest mb-1">{currentBook} Balance {isLoading && "(Syncing...)"}</p>
@@ -243,7 +303,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 3. Records List (Scrollable Area) */}
       <main className="flex-1 overflow-y-auto px-4 pb-28 space-y-1 no-scrollbar relative">
         <div className="opacity-90 transition-opacity" style={{ opacity: isLoading ? 0.5 : 1 }}>
           {filteredEntries.length === 0 && !isLoading && <p className="text-center text-slate-500 text-sm mt-10">မှတ်တမ်းမရှိသေးပါ။</p>}
@@ -264,10 +323,9 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Floating Button */}
       <button onClick={() => openEntryModal()} className="fixed bottom-6 right-6 w-14 h-14 bg-yellow-400 text-black rounded-2xl shadow-xl z-50 flex items-center justify-center text-xl active:scale-90 transition disabled:opacity-50" disabled={isLoading}><i className="fa-solid fa-plus"></i></button>
 
-      {/* Entry Modal */}
+      {/* Modals are kept same, just rendering logic handles state */}
       {isEntryModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content p-6 shadow-2xl">
@@ -290,7 +348,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Book Modal */}
       {isBookModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content p-8 shadow-2xl">
@@ -304,7 +361,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Rename Modal */}
       {isRenameModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content p-8 shadow-2xl">
