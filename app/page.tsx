@@ -39,13 +39,11 @@ export default function Home() {
   const [filterMonth, setFilterMonth] = useState<string>("all");
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
 
-
-// --- Pull-to-Refresh Logic ---
+  // --- Pull-to-Refresh Logic ---
   const [startY, setStartY] = useState(0);
 
   useEffect(() => {
     const handleTouchStart = (e: TouchEvent) => {
-      // Screen ရဲ့ အပေါ်ဆုံးမှာ ရှိနေမှ (Scroll top က သုညဖြစ်နေမှ) အလုပ်လုပ်မယ်
       if (window.scrollY === 0) {
         setStartY(e.touches[0].pageY);
       }
@@ -53,7 +51,6 @@ export default function Home() {
 
     const handleTouchEnd = (e: TouchEvent) => {
       const endY = e.changedTouches[0].pageY;
-      // အောက်ကို အနည်းဆုံး 150px ဆွဲချရင် refresh လုပ်မယ်
       if (window.scrollY === 0 && endY - startY > 150) {
         window.location.reload();
       }
@@ -61,14 +58,11 @@ export default function Home() {
 
     window.addEventListener("touchstart", handleTouchStart);
     window.addEventListener("touchend", handleTouchEnd);
-
     return () => {
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchend", handleTouchEnd);
     };
   }, [startY]);
-
-  
 
   useEffect(() => {
     setIsMounted(true);
@@ -81,7 +75,6 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // User ပြောင်းတိုင်း သို့မဟုတ် စာအုပ်စာရင်း အသစ်လိုအပ်တိုင်း လှမ်းယူမယ်
   useEffect(() => {
     if (user) {
       fetchBooksAndData();
@@ -91,8 +84,6 @@ export default function Home() {
   const fetchBooksAndData = async () => {
     if (!user) return;
     setIsLoading(true);
-    
-    // Database ထဲက ဒီ user ရဲ့ book name တွေကို unique ဆွဲထုတ်မယ်
     const { data, error } = await supabase
       .from('entries')
       .select('book_name')
@@ -103,7 +94,6 @@ export default function Home() {
       const finalBooks = dbBooks.length > 0 ? dbBooks : ["အိမ်သုံးစရိတ်"];
       setBooks(finalBooks);
       
-      // နောက်ဆုံးသုံးခဲ့တဲ့စာအုပ်ကို ရွေးမယ်
       const savedBook = localStorage.getItem(`active_book_${user.id}`);
       if (savedBook && finalBooks.includes(savedBook)) {
         setCurrentBook(savedBook);
@@ -114,7 +104,6 @@ export default function Home() {
     setIsLoading(false);
   };
 
-  // စာအုပ် ပြောင်းရွေးတိုင်း data လှမ်းယူမယ်
   useEffect(() => {
     if (user && currentBook) {
       localStorage.setItem(`active_book_${user.id}`, currentBook);
@@ -141,9 +130,31 @@ export default function Home() {
     if (!name || books.includes(name)) return;
     setBooks(prev => [name, ...prev]);
     setCurrentBook(name);
-    setEntries([]); // အသစ်မို့ data မရှိသေး
+    setEntries([]);
     setNewBookName("");
     setIsBookModalOpen(false);
+  };
+
+  const renameBook = async () => {
+    const newName = renameInput.trim();
+    if (!newName || newName === currentBook || books.includes(newName) || !user) return setIsRenameModalOpen(false);
+    
+    setIsLoading(true);
+    const { error } = await supabase
+      .from('entries')
+      .update({ book_name: newName })
+      .eq('book_name', currentBook)
+      .eq('user_id', user.id);
+
+    if (error) {
+      alert("Error: " + error.message);
+    } else {
+      const updatedBooks = books.map(b => b === currentBook ? newName : b);
+      setBooks(updatedBooks);
+      setCurrentBook(newName);
+      setIsRenameModalOpen(false);
+    }
+    setIsLoading(false);
   };
 
   const handleAuth = async () => {
@@ -198,7 +209,6 @@ export default function Home() {
     );
   }
 
-  // Derived calculations
   const filteredEntries = entries.filter((i: any) => {
     const mMatch = filterMonth === 'all' || i.month_str === filterMonth;
     const yMatch = i.year_str === filterYear;
@@ -213,12 +223,13 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-[100dvh] bg-[#030712] overflow-hidden">
-      <header className="p-3 bg-[#030712]/90 border-b border-white/5">
+      <header className="flex-none p-3 z-40 bg-[#030712]/90 backdrop-blur-md border-b border-white/5 pt-[env(safe-area-inset-top)]">
         <div className="flex justify-between items-center px-1 mb-2">
           <div className="flex items-center gap-1">
             <select value={currentBook} onChange={(e) => setCurrentBook(e.target.value)} className="bg-transparent text-yellow-400 font-bold border-none focus:ring-0 truncate max-w-[150px]">
               {books.map(name => <option key={name} value={name}>{name}</option>)}
             </select>
+            <button onClick={() => { setRenameInput(currentBook); setIsRenameModalOpen(true); }} className="text-slate-500 p-1"><i className="fa-solid fa-pen text-[10px]"></i></button>
             <button onClick={() => setIsBookModalOpen(true)} className="text-slate-500 p-1"><i className="fa-solid fa-folder-plus text-xs"></i></button>
           </div>
           <button onClick={() => supabase.auth.signOut()} className="text-red-400 text-sm"><i className="fa-solid fa-power-off"></i></button>
@@ -234,9 +245,9 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="p-4 space-y-4">
-        <div className="p-6 rounded-[2rem] balance-gradient text-white shadow-2xl">
-          <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">{currentBook} Balance</p>
+      <div className="flex-none p-4 pb-2 space-y-4">
+        <div className="p-6 rounded-[2rem] balance-gradient text-white shadow-2xl relative overflow-hidden">
+          <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">{currentBook} Balance {isLoading && "(Syncing...)"}</p>
           <h1 className="text-5xl font-extrabold tracking-tighter my-3">{(incTotal - expTotal).toLocaleString()}</h1>
           <div className="flex gap-4 pt-4 border-t border-white/10 text-xs">
             <div className="flex-1"><p className="opacity-60 uppercase text-[8px]">In</p><p className="font-bold text-green-300">+{incTotal.toLocaleString()}</p></div>
@@ -250,34 +261,36 @@ export default function Home() {
         </div>
       </div>
 
-      <main className="flex-1 overflow-y-auto px-4 pb-24 space-y-1 no-scrollbar">
-        {filteredEntries.map((item: any) => (
-          <div key={item.id} className="p-5 list-card rounded-2xl flex justify-between items-center" onClick={() => { setEditId(item.id); setEntryDesc(item.desc_text); setEntryAmt(item.amt); setEntryType(item.entry_type); setIsEntryModalOpen(true); }}>
-            <div className="flex items-center gap-4">
-              <div className={`w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center ${item.entry_type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
-                <i className={`fa-solid ${item.entry_type === 'income' ? 'fa-arrow-up' : 'fa-arrow-down'} text-[10px]`}></i>
+      <main className="flex-1 overflow-y-auto px-4 pb-28 space-y-1 no-scrollbar relative">
+        <div className="opacity-90 transition-opacity" style={{ opacity: isLoading ? 0.5 : 1 }}>
+          {filteredEntries.length === 0 && !isLoading && <p className="text-center text-slate-500 text-sm mt-10">မှတ်တမ်းမရှိသေးပါ။</p>}
+          {filteredEntries.map((item: any) => (
+            <div key={item.id} className="p-5 list-card rounded-2xl flex justify-between items-center" onClick={() => { setEditId(item.id); setEntryDesc(item.desc_text); setEntryAmt(item.amt); setEntryType(item.entry_type); setIsEntryModalOpen(true); }}>
+              <div className="flex items-center gap-4">
+                <div className={`w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center ${item.entry_type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                  <i className={`fa-solid ${item.entry_type === 'income' ? 'fa-arrow-up' : 'fa-arrow-down'} text-[10px]`}></i>
+                </div>
+                <div><h4 className="font-semibold text-white text-sm">{item.desc_text}</h4><p className="text-[9px] text-slate-500 font-bold uppercase">{item.date_str}</p></div>
               </div>
-              <div><h4 className="font-semibold text-white text-sm">{item.desc_text}</h4><p className="text-[9px] text-slate-500 font-bold uppercase">{item.date_str}</p></div>
+              <div className="flex items-center gap-4">
+                <span className={`font-bold ${item.entry_type === 'income' ? 'text-green-400' : 'text-red-400'}`}>{item.amt.toLocaleString()}</span>
+                <button onClick={(e) => { e.stopPropagation(); deleteEntry(item.id); }} className="text-slate-700 p-2 ml-1"><i className="fa-solid fa-trash-can text-sm"></i></button>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              <span className={`font-bold ${item.entry_type === 'income' ? 'text-green-400' : 'text-red-400'}`}>{item.amt.toLocaleString()}</span>
-              <button onClick={(e) => { e.stopPropagation(); deleteEntry(item.id); }} className="text-slate-700 p-2"><i className="fa-solid fa-trash-can text-sm"></i></button>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </main>
 
       <button onClick={() => { setEditId(null); setEntryDesc(""); setEntryAmt(""); setIsEntryModalOpen(true); }} className="fixed bottom-6 right-6 w-14 h-14 bg-yellow-400 text-black rounded-2xl shadow-xl z-50 flex items-center justify-center text-xl active:scale-90 transition"><i className="fa-solid fa-plus"></i></button>
 
-      {/* Entry Modal */}
       {isEntryModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content p-6">
+          <div className="modal-content p-6 shadow-2xl">
             <div className="flex justify-between items-center mb-6"><h3 className="text-lg font-bold text-yellow-400">{editId ? "Edit" : "New"} Entry</h3><button onClick={() => setIsEntryModalOpen(false)} className="text-slate-500 text-2xl">&times;</button></div>
             <div className="space-y-4">
               <input type="text" value={entryDesc} onChange={(e) => setEntryDesc(e.target.value)} placeholder="အကြောင်းအရာ" className="w-full p-4 rounded-xl bg-slate-800 text-white outline-none" />
               <div className="flex gap-2">
-                <input type="number" value={entryAmt} onChange={(e) => setEntryAmt(e.target.value)} placeholder="ပမာဏ" className="flex-1 p-4 rounded-xl bg-slate-800 text-white outline-none" />
+                <input type="number" value={entryAmt} onChange={(e) => setEntryAmt(e.target.value)} placeholder="ပမာဏ" className="flex-1 p-4 rounded-xl bg-slate-800 text-white outline-none" inputMode="decimal" />
                 <select value={entryType} onChange={(e) => setEntryType(e.target.value)} className="w-32 p-4 rounded-xl bg-slate-800 text-white outline-none">
                   <option value="expense">Out (-)</option>
                   <option value="income">In (+)</option>
@@ -289,15 +302,29 @@ export default function Home() {
         </div>
       )}
 
-      {/* Book Modal */}
       {isBookModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content p-8">
+          <div className="modal-content p-8 shadow-2xl">
             <h3 className="text-lg font-bold text-yellow-400 mb-6 uppercase">New Book</h3>
             <input type="text" value={newBookName} onChange={(e) => setNewBookName(e.target.value)} placeholder="နာမည်ပေးပါ" className="w-full p-4 mb-6 rounded-xl bg-slate-800 text-white outline-none" />
             <div className="flex gap-4">
               <button onClick={() => setIsBookModalOpen(false)} className="flex-1 py-4 text-slate-500">Cancel</button>
               <button onClick={createNewBook} className="flex-1 bg-yellow-400 text-black py-4 rounded-xl font-bold uppercase">Create</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isRenameModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content p-8 shadow-2xl">
+            <h3 className="text-lg font-bold text-yellow-400 mb-6 uppercase">Rename Book</h3>
+            <input type="text" value={renameInput} onChange={(e) => setRenameInput(e.target.value)} className="w-full p-4 mb-6 rounded-xl bg-slate-800 text-white outline-none" />
+            <div className="flex gap-4">
+              <button onClick={() => setIsRenameModalOpen(false)} className="flex-1 py-4 text-slate-500">Cancel</button>
+              <button onClick={renameBook} className="flex-1 bg-yellow-400 text-black py-4 rounded-xl font-bold uppercase">
+                {isLoading ? "Updating..." : "Update"}
+              </button>
             </div>
           </div>
         </div>
