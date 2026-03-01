@@ -36,9 +36,11 @@ export default function Home() {
   // Auth/Modal/Forgot PW States
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState(""); // Password အသစ်အတွက်
   const [authError, setAuthError] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false); // Reset Screen အတွက်
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
@@ -71,12 +73,20 @@ export default function Home() {
 
   useEffect(() => {
     setIsMounted(true);
+    // Session စစ်မယ်
     supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
+
+    // Auth Change ကို နားထောင်မယ် (Password Reset Link အတွက် အဓိက)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setIsResettingPassword(true); // Password ပြင်မယ့် Screen ပြမယ်
+      }
+      setUser(session?.user ?? null);
+    });
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => { if (user) fetchBooksAndData(); }, [user]);
+  useEffect(() => { if (user && !isResettingPassword) fetchBooksAndData(); }, [user, isResettingPassword]);
 
   const fetchBooksAndData = async () => {
     if (!user) return;
@@ -93,11 +103,11 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (user && currentBook) {
+    if (user && currentBook && !isResettingPassword) {
       localStorage.setItem(`active_book_${user.id}`, currentBook);
       fetchEntries();
     }
-  }, [currentBook, user]);
+  }, [currentBook, user, isResettingPassword]);
 
   const fetchEntries = async () => {
     if (!user || !currentBook) return;
@@ -131,17 +141,41 @@ export default function Home() {
 
   const handleAuth = async () => {
     setAuthError("");
+    setIsLoading(true);
     const { error } = isSignUp 
       ? await supabase.auth.signUp({ email, password })
       : await supabase.auth.signInWithPassword({ email, password });
     if (error) setAuthError(error.message);
+    setIsLoading(false);
   };
 
   const handleForgotPassword = async () => {
     if (!email) return setAuthError("Email is required");
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
-    if (error) setAuthError(error.message);
-    else showToast("Password reset email sent!", "success");
+    setIsLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { 
+        redirectTo: window.location.origin 
+    });
+    if (error) {
+        setAuthError(error.message);
+    } else {
+        showToast("Link sent! Check your email.", "success");
+        setIsForgotPassword(false); // Link ပို့ပြီးရင် Login Screen ပြန်သွားမယ်
+    }
+    setIsLoading(false);
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!newPassword) return setAuthError("New password is required");
+    setIsLoading(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      setAuthError(error.message);
+    } else {
+      showToast("Password updated!", "success");
+      setIsResettingPassword(false);
+      setNewPassword("");
+    }
+    setIsLoading(false);
   };
 
   const saveEntry = async () => {
@@ -165,6 +199,20 @@ export default function Home() {
 
   if (!isMounted) return null;
 
+  // --- Password Reset UI ---
+  if (isResettingPassword) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-[#030712] z-[110] p-8">
+        <div className="w-full max-w-xs text-center text-yellow-400">
+          <h1 className="text-xl font-bold mb-8 uppercase tracking-widest">New Password</h1>
+          <input type="password" placeholder="New Password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full p-4 mb-6 rounded-xl bg-slate-900 border border-slate-800 text-white" />
+          {authError && <p className="text-red-400 text-xs mb-4">{authError}</p>}
+          <button onClick={handleUpdatePassword} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-4 uppercase">{isLoading ? "Updating..." : "Update Password"}</button>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-[#030712] z-[100] p-8">
@@ -172,18 +220,20 @@ export default function Home() {
           <h1 className="text-xl font-bold mb-8 uppercase tracking-widest">Money Note</h1>
           {isForgotPassword ? (
             <>
+              <p className="text-xs text-slate-500 mb-4 text-center">We'll send a reset link to your email.</p>
               <input type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-4 mb-4 rounded-xl bg-slate-900 border border-slate-800 text-white" />
-              <button onClick={handleForgotPassword} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-4 uppercase">Send Link</button>
-              <button onClick={() => setIsForgotPassword(false)} className="text-sm text-slate-500">Back to Login</button>
+              {authError && <p className="text-red-400 text-xs mb-4">{authError}</p>}
+              <button onClick={handleForgotPassword} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-4 uppercase">{isLoading ? "Sending..." : "Send Link"}</button>
+              <button onClick={() => {setIsForgotPassword(false); setAuthError("");}} className="text-sm text-slate-500">Back to Login</button>
             </>
           ) : (
             <>
               <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-4 mb-4 rounded-xl bg-slate-900 border border-slate-800 text-white" />
               <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-4 mb-6 rounded-xl bg-slate-900 border border-slate-800 text-white" />
               {authError && <p className="text-red-400 text-xs mb-4">{authError}</p>}
-              <button onClick={handleAuth} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-4 uppercase">{isSignUp ? "Sign Up" : "Login"}</button>
-              {!isSignUp && <button onClick={() => setIsForgotPassword(true)} className="text-xs text-slate-600 mb-6 block w-full text-center">Forgot Password?</button>}
-              <button onClick={() => setIsSignUp(!isSignUp)} className="text-sm text-slate-500">{isSignUp ? "Login" : "No account? Sign Up"}</button>
+              <button onClick={handleAuth} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-4 uppercase">{isLoading ? "Wait..." : (isSignUp ? "Sign Up" : "Login")}</button>
+              {!isSignUp && <button onClick={() => {setIsForgotPassword(true); setAuthError("");}} className="text-xs text-slate-600 mb-6 block w-full text-center">Forgot Password?</button>}
+              <button onClick={() => {setIsSignUp(!isSignUp); setAuthError("");}} className="text-sm text-slate-500">{isSignUp ? "Already have account? Login" : "No account? Sign Up"}</button>
             </>
           )}
         </div>
@@ -191,7 +241,7 @@ export default function Home() {
     );
   }
 
-  // Derived Calculations
+  // Derived Calculations & Render (အရင်အတိုင်းပါပဲ)
   const filteredEntries = entries.filter((i: any) => (filterMonth === 'all' || i.month_str === filterMonth) && i.year_str === filterYear && (currentType === 'all' || i.entry_type === currentType));
   let incTotal = 0, expTotal = 0;
   entries.filter((i: any) => (filterMonth === 'all' || i.month_str === filterMonth) && i.year_str === filterYear).forEach((i: any) => { if (i.entry_type === 'income') incTotal += parseFloat(i.amt); else expTotal += parseFloat(i.amt); });
@@ -211,6 +261,7 @@ export default function Home() {
       </header>
 
       <main className="flex-1 px-4 pt-4 pb-28 space-y-4 overflow-y-auto no-scrollbar">
+        {/* Balance Card, Tabs, Entries (အရင်အတိုင်းပါပဲ) */}
         <div className="p-6 rounded-[2rem] balance-gradient text-white shadow-2xl relative overflow-hidden">
           <p className="text-[9px] font-bold uppercase tracking-widest opacity-70">{currentBook} Balance {isLoading && "(...)"}</p>
           <h1 className="text-5xl font-extrabold tracking-tighter my-3">{(incTotal - expTotal).toLocaleString()}</h1>
@@ -268,7 +319,7 @@ export default function Home() {
               </select>
             </div>
             <button onClick={saveEntry} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold uppercase">Confirm</button>
-            <button onClick={() => setIsEntryModalOpen(false)} className="w-full py-4 text-slate-500">Cancel</button>
+            <button onClick={() => setIsEntryModalOpen(false)} className="text-slate-500 text-center block w-full py-4">Cancel</button>
           </div>
         </div>
       )}
