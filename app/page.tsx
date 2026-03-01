@@ -143,17 +143,37 @@ export default function Home() {
     setIsLoading(false);
   };
 
-  const createNewBook = () => {
+const createNewBook = async () => {
     const name = newBookName.trim();
-    if (!name || books.includes(name)) return;
-    setBooks(prev => [name, ...prev]);
-    setCurrentBook(name);
-    setEntries([]);
-    setNewBookName("");
-    setIsBookModalOpen(false);
-    showToast(`စာအုပ်သစ် "${name}" ဆောက်ပြီးပါပြီ`, "success");
-  };
+    if (!name || books.includes(name) || !user) return;
+    
+    setIsLoading(true);
+    const now = new Date();
+    
+    // Database ထဲမှာ စာအုပ်နာမည်ကို စာရင်းတစ်ခုအနေနဲ့ အရင်သွားမှတ်ခိုင်းတာပါ
+    const { error } = await supabase.from('entries').insert([{
+      user_id: user.id,
+      book_name: name,
+      desc_text: "စာအုပ်စတင်ဖွင့်လှစ်ခြင်း",
+      amt: 0,
+      entry_type: "income",
+      date_str: now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+      month_str: now.getMonth().toString(),
+      year_str: now.getFullYear().toString()
+    }]);
 
+    if (error) {
+      showToast("Error: " + error.message, "error");
+    } else {
+      // Database မှာ အောင်မြင်မှ App ထဲက List မှာ ပြမယ်
+      setBooks(prev => [name, ...prev]);
+      setCurrentBook(name);
+      setNewBookName("");
+      setIsBookModalOpen(false);
+      showToast(`စာအုပ်သစ် "${name}" ကို Database တွင် မှတ်သားပြီးပါပြီ`, "success");
+    }
+    setIsLoading(false);
+  };
   const renameBook = async () => {
     const newName = renameInput.trim();
     if (!newName || newName === currentBook || books.includes(newName) || !user) return setIsRenameModalOpen(false);
