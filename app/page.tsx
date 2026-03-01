@@ -13,11 +13,9 @@ export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const [user, setUser] = useState<any>(null);
 
-
-// Notification States
+  // --- Notification (Toast) States ---
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | null }>({ message: '', type: null });
 
-  // Notification ပြပြီး ၃ စက္ကန့်နေရင် ပြန်ဖျောက်မယ်
   useEffect(() => {
     if (toast.type) {
       const timer = setTimeout(() => setToast({ message: '', type: null }), 3000);
@@ -29,10 +27,7 @@ export default function Home() {
     setToast({ message, type });
   };
 
-
-  
-  
-  // App States
+  // --- App States ---
   const [books, setBooks] = useState<string[]>([]);
   const [currentBook, setCurrentBook] = useState("");
   const [entries, setEntries] = useState<any[]>([]);
@@ -66,7 +61,6 @@ export default function Home() {
     if (!mainEl) return;
 
     const handleTouchStart = (e: TouchEvent) => {
-      // Main element ရဲ့ scroll က ထိပ်ဆုံးမှာ ရှိနေမှ မှတ်မယ်
       if (mainEl.scrollTop === 0) {
         setStartY(e.touches[0].pageY);
       }
@@ -75,7 +69,6 @@ export default function Home() {
     const handleTouchEnd = (e: TouchEvent) => {
       const endY = e.changedTouches[0].pageY;
       const distance = endY - startY;
-      // အောက်ကို အနည်းဆုံး 150px ဆွဲချရင် reload လုပ်မယ်
       if (mainEl.scrollTop === 0 && distance > 150) {
         window.location.reload();
       }
@@ -158,12 +151,18 @@ export default function Home() {
     setEntries([]);
     setNewBookName("");
     setIsBookModalOpen(false);
+    showToast(`စာအုပ်သစ် "${name}" ဆောက်ပြီးပါပြီ`, "success");
   };
 
   const renameBook = async () => {
     const newName = renameInput.trim();
     if (!newName || newName === currentBook || books.includes(newName) || !user) return setIsRenameModalOpen(false);
     
+    if (!window.navigator.onLine) {
+      showToast("အင်တာနက်မရှိသဖြင့် အမည်ပြောင်း၍မရပါ", "error");
+      return;
+    }
+
     setIsLoading(true);
     const { error } = await supabase
       .from('entries')
@@ -172,12 +171,13 @@ export default function Home() {
       .eq('user_id', user.id);
 
     if (error) {
-      alert("Error: " + error.message);
+      showToast("Error: " + error.message, "error");
     } else {
       const updatedBooks = books.map(b => b === currentBook ? newName : b);
       setBooks(updatedBooks);
       setCurrentBook(newName);
       setIsRenameModalOpen(false);
+      showToast("စာအုပ်အမည် ပြောင်းပြီးပါပြီ", "success");
     }
     setIsLoading(false);
   };
@@ -193,27 +193,52 @@ export default function Home() {
   const saveEntry = async () => {
     const amt = parseFloat(entryAmt);
     if (!entryDesc || isNaN(amt) || !user) return;
+
+    if (!window.navigator.onLine) {
+      showToast("အင်တာနက်မရှိသဖြင့် သိမ်းဆည်း၍မရပါ", "error");
+      return;
+    }
+
     setIsLoading(true);
+    let error;
 
     if (editId) {
-      await supabase.from('entries').update({ desc_text: entryDesc, amt, entry_type: entryType }).eq('id', editId).eq('user_id', user.id);
+      const { error: err } = await supabase.from('entries').update({ desc_text: entryDesc, amt, entry_type: entryType }).eq('id', editId).eq('user_id', user.id);
+      error = err;
     } else {
       const now = new Date();
-      await supabase.from('entries').insert([{
+      const { error: err } = await supabase.from('entries').insert([{
         user_id: user.id, book_name: currentBook, desc_text: entryDesc, amt, entry_type: entryType,
         date_str: now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
         month_str: now.getMonth().toString(), year_str: now.getFullYear().toString()
       }]);
+      error = err;
     }
-    setIsEntryModalOpen(false);
-    fetchEntries();
+
+    if (error) {
+      showToast("Error: " + error.message, "error");
+    } else {
+      showToast(editId ? "ပြင်ဆင်ပြီးပါပြီ" : "မှတ်တမ်းအသစ် သိမ်းဆည်းပြီးပါပြီ", "success");
+      setIsEntryModalOpen(false);
+      fetchEntries();
+    }
+    setIsLoading(false);
   };
 
   const deleteEntry = async (id: number) => {
     if (window.confirm('Delete?')) {
+      if (!window.navigator.onLine) {
+        showToast("အင်တာနက်မရှိသဖြင့် ဖျက်၍မရပါ", "error");
+        return;
+      }
       setIsLoading(true);
-      await supabase.from('entries').delete().eq('id', id).eq('user_id', user.id);
-      fetchEntries();
+      const { error } = await supabase.from('entries').delete().eq('id', id).eq('user_id', user.id);
+      if (error) {
+        showToast("Error: " + error.message, "error");
+      } else {
+        showToast("ဖျက်ပြီးပါပြီ", "success");
+        fetchEntries();
+      }
     }
   };
 
@@ -307,6 +332,14 @@ export default function Home() {
       </main>
 
       <button onClick={() => { setEditId(null); setEntryDesc(""); setEntryAmt(""); setIsEntryModalOpen(true); }} className="fixed bottom-10 right-6 w-14 h-14 bg-yellow-400 text-black rounded-2xl shadow-xl z-50 flex items-center justify-center text-xl active:scale-90 transition"><i className="fa-solid fa-plus"></i></button>
+
+      {/* Toast Notification */}
+      {toast.type && (
+        <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-2xl shadow-2xl transition-all animate-bounce ${toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white font-bold text-sm flex items-center gap-2`}>
+          <i className={`fa-solid ${toast.type === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation'}`}></i>
+          {toast.message}
+        </div>
+      )}
 
       {/* Entry Modal */}
       {isEntryModalOpen && (
