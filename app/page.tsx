@@ -161,6 +161,20 @@ export default function Home() {
     setIsLoading(false);
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) return setAuthError("Email is required");
+    setIsLoading(true);
+    setAuthError("");
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    if (error) {
+      setAuthError(error.message);
+    } else {
+      showToast("Check your email!", "success");
+      setIsForgotPassword(false);
+    }
+    setIsLoading(false);
+  };
+
   const saveEntry = async () => {
     const amt = parseFloat(entryAmt);
     if (!entryDesc || isNaN(amt) || !user) return;
@@ -197,10 +211,12 @@ export default function Home() {
           <h1 className="text-xl font-bold mb-8 uppercase tracking-widest">New Password</h1>
           <input type="password" placeholder="New Password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full p-4 mb-6 rounded-xl bg-slate-900 border border-slate-800 text-white" />
           <button onClick={async () => {
+            setIsLoading(true);
             const { error } = await supabase.auth.updateUser({ password: newPassword });
             if (error) showToast(error.message, "error");
             else { showToast("Updated!", "success"); setIsResettingPassword(false); }
-          }} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold uppercase">Update</button>
+            setIsLoading(false);
+          }} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold uppercase">{isLoading ? "Updating..." : "Update"}</button>
         </div>
       </div>
     );
@@ -214,21 +230,18 @@ export default function Home() {
           {isForgotPassword ? (
             <>
               <input type="email" placeholder="Enter email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-4 mb-4 rounded-xl bg-slate-900 border border-slate-800 text-white" />
-              <button onClick={async () => {
-                const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
-                if (error) showToast(error.message, "error");
-                else showToast("Check your email!", "success");
-              }} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-4">Send Link</button>
-              <button onClick={() => setIsForgotPassword(false)} className="text-sm text-slate-500">Back</button>
+              {authError && <p className="text-red-400 text-xs mb-4">{authError}</p>}
+              <button onClick={handleForgotPassword} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-4">{isLoading ? "Sending..." : "Send Link"}</button>
+              <button onClick={() => {setIsForgotPassword(false); setAuthError("");}} className="text-sm text-slate-500">Back</button>
             </>
           ) : (
             <>
               <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-4 mb-4 rounded-xl bg-slate-900 border border-slate-800 text-white" />
               <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-4 mb-6 rounded-xl bg-slate-900 border border-slate-800 text-white" />
               {authError && <p className="text-red-400 text-xs mb-4">{authError}</p>}
-              <button onClick={handleAuth} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-4 uppercase">{isSignUp ? "Sign Up" : "Login"}</button>
-              {!isSignUp && <button onClick={() => setIsForgotPassword(true)} className="text-xs text-slate-600 mb-4 block w-full text-center">Forgot Password?</button>}
-              <button onClick={() => setIsSignUp(!isSignUp)} className="text-sm text-slate-500">{isSignUp ? "Login" : "Sign Up"}</button>
+              <button onClick={handleAuth} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold mb-4 uppercase">{isLoading ? "Wait..." : (isSignUp ? "Sign Up" : "Login")}</button>
+              {!isSignUp && <button onClick={() => {setIsForgotPassword(true); setAuthError("");}} className="text-xs text-slate-600 mb-4 block w-full text-center">Forgot Password?</button>}
+              <button onClick={() => {setIsSignUp(!isSignUp); setAuthError("");}} className="text-sm text-slate-500">{isSignUp ? "Login" : "Sign Up"}</button>
             </>
           )}
         </div>
@@ -248,7 +261,6 @@ export default function Home() {
             <select value={currentBook} onChange={(e) => setCurrentBook(e.target.value)} className="bg-transparent text-yellow-400 font-bold border-none truncate max-w-[120px]">
               {books.map(name => <option key={name} value={name}>{name}</option>)}
             </select>
-            {/* Book Rename Button */}
             <button onClick={() => { setRenameInput(currentBook); setIsRenameModalOpen(true); }} className="text-slate-500 p-1"><i className="fa-solid fa-pen text-[10px]"></i></button>
             <button onClick={() => setIsBookModalOpen(true)} className="text-slate-500 p-1"><i className="fa-solid fa-folder-plus text-xs"></i></button>
           </div>
@@ -279,7 +291,6 @@ export default function Home() {
               </div>
               <div className="flex items-center gap-4">
                 <span className={`font-bold ${item.entry_type === 'income' ? 'text-green-400' : 'text-red-400'}`}>{item.amt.toLocaleString()}</span>
-                {/* Delete Entry Button */}
                 <button onClick={(e) => { e.stopPropagation(); deleteEntry(item.id); }} className="text-slate-700 p-2"><i className="fa-solid fa-trash-can text-sm"></i></button>
               </div>
             </div>
@@ -289,7 +300,7 @@ export default function Home() {
 
       <button onClick={() => { setEditId(null); setEntryDesc(""); setEntryAmt(""); setIsEntryModalOpen(true); }} className="fixed bottom-10 right-6 w-14 h-14 bg-yellow-400 text-black rounded-2xl shadow-xl z-50 flex items-center justify-center text-xl active:scale-90 transition"><i className="fa-solid fa-plus"></i></button>
 
-      {/* Toast Notification Popup */}
+      {/* Toast Notification */}
       {toast.type && (
         <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-2xl shadow-2xl transition-all ${toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white font-bold text-sm flex items-center gap-2`}>
           <i className={`fa-solid ${toast.type === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation'}`}></i>
@@ -304,7 +315,7 @@ export default function Home() {
             <h3 className="text-lg font-bold text-yellow-400 mb-6 uppercase">Rename Book</h3>
             <input type="text" value={renameInput} onChange={(e) => setRenameInput(e.target.value)} className="w-full p-4 mb-6 rounded-xl bg-slate-800 text-white outline-none" />
             <button onClick={renameBook} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold uppercase mb-2">Update</button>
-            <button onClick={() => setIsRenameModalOpen(false)} className="w-full py-4 text-slate-500">Cancel</button>
+            <button onClick={() => setIsRenameModalOpen(false)} className="w-full py-4 text-slate-500 text-center block">Cancel</button>
           </div>
         </div>
       )}
@@ -315,7 +326,7 @@ export default function Home() {
             <h3 className="text-lg font-bold text-yellow-400 mb-6 uppercase">New Book</h3>
             <input type="text" value={newBookName} onChange={(e) => setNewBookName(e.target.value)} placeholder="Name" className="w-full p-4 mb-6 rounded-xl bg-slate-800 text-white outline-none" />
             <button onClick={createNewBook} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold uppercase mb-2">Create</button>
-            <button onClick={() => setIsBookModalOpen(false)} className="w-full py-4 text-slate-500">Cancel</button>
+            <button onClick={() => setIsBookModalOpen(false)} className="w-full py-4 text-slate-500 text-center block">Cancel</button>
           </div>
         </div>
       )}
@@ -324,7 +335,7 @@ export default function Home() {
         <div className="modal-overlay">
           <div className="modal-content p-6">
             <h3 className="text-lg font-bold text-yellow-400 mb-6 uppercase">{editId ? "Edit" : "New"} Entry</h3>
-            <input type="text" value={entryDesc} onChange={(e) => setEntryDesc(e.target.value)} placeholder="Description" className="w-full p-4 mb-4 rounded-xl bg-slate-800 text-white outline-none" />
+            <input type="text" value={entryDesc} onChange={(e) => setEditId(item.id) ? "" : setEntryDesc(e.target.value)} placeholder="Description" className="w-full p-4 mb-4 rounded-xl bg-slate-800 text-white outline-none" />
             <div className="flex gap-2 mb-6">
               <input type="number" value={entryAmt} onChange={(e) => setEntryAmt(e.target.value)} placeholder="Amount" className="flex-1 p-4 rounded-xl bg-slate-800 text-white outline-none" />
               <select value={entryType} onChange={(e) => setEntryType(e.target.value)} className="w-32 p-4 rounded-xl bg-slate-800 text-white">
@@ -333,7 +344,7 @@ export default function Home() {
               </select>
             </div>
             <button onClick={saveEntry} className="w-full bg-yellow-400 text-black py-4 rounded-xl font-bold uppercase mb-2">Confirm</button>
-            <button onClick={() => setIsEntryModalOpen(false)} className="w-full py-4 text-slate-500">Cancel</button>
+            <button onClick={() => setIsEntryModalOpen(false)} className="w-full py-4 text-slate-500 text-center block">Cancel</button>
           </div>
         </div>
       )}
