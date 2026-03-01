@@ -284,7 +284,7 @@ export default function Home() {
 
         <div className="space-y-1">
           {filteredEntries.map((item: any) => (
-            <div key={item.id} className="p-5 list-card rounded-2xl flex justify-between items-center" onClick={() => { setEditId(item.id); setEntryDesc(item.desc_text); setEntryAmt(item.amt); setEntryType(item.entry_type); setIsEntryModalOpen(true); }}>
+            <div key={item.id} className="p-5 list-card rounded-2xl flex justify-between items-center" onClick={() => { setEditId(item.id); setEntryDesc(item.desc_text); setEntryAmt(item.amt.toString()); setEntryType(item.entry_type); setIsEntryModalOpen(true); }}>
               <div className="flex items-center gap-4">
                 <div className={`w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center ${item.entry_type === 'income' ? 'text-green-400' : 'text-red-400'}`}><i className={`fa-solid ${item.entry_type === 'income' ? 'fa-arrow-up' : 'fa-arrow-down'} text-[10px]`}></i></div>
                 <div><h4 className="font-semibold text-white text-sm">{item.desc_text}</h4><p className="text-[9px] text-slate-500 font-bold uppercase">{item.date_str}</p></div>
@@ -335,7 +335,7 @@ export default function Home() {
         <div className="modal-overlay">
           <div className="modal-content p-6">
             <h3 className="text-lg font-bold text-yellow-400 mb-6 uppercase">{editId ? "Edit" : "New"} Entry</h3>
-            <input type="text" value={entryDesc} onChange={(e) => setEditId(item.id) ? "" : setEntryDesc(e.target.value)} placeholder="Description" className="w-full p-4 mb-4 rounded-xl bg-slate-800 text-white outline-none" />
+            <input type="text" value={entryDesc} onChange={(e) => setEntryDesc(e.target.value)} placeholder="Description" className="w-full p-4 mb-4 rounded-xl bg-slate-800 text-white outline-none" />
             <div className="flex gap-2 mb-6">
               <input type="number" value={entryAmt} onChange={(e) => setEntryAmt(e.target.value)} placeholder="Amount" className="flex-1 p-4 rounded-xl bg-slate-800 text-white outline-none" />
               <select value={entryType} onChange={(e) => setEntryType(e.target.value)} className="w-32 p-4 rounded-xl bg-slate-800 text-white">
