@@ -337,7 +337,21 @@ export default function Home() {
             <h3 className="text-lg font-bold text-yellow-400 mb-6 uppercase">{editId ? "Edit" : "New"} Entry</h3>
             <input type="text" value={entryDesc} onChange={(e) => setEntryDesc(e.target.value)} placeholder="Description" className="w-full p-4 mb-4 rounded-xl bg-slate-800 text-white outline-none" />
             <div className="flex gap-2 mb-6">
-              <input type="number" value={entryAmt} onChange={(e) => setEntryAmt(e.target.value)} placeholder="Amount" className="flex-1 p-4 rounded-xl bg-slate-800 text-white outline-none" />
+
+
+              
+              {/* Amount ရိုက်တဲ့ input နေရာမှာ inputMode="decimal" လေး ထည့်လိုက်ပါ */}
+<input 
+  type="number" 
+  value={entryAmt} 
+  onChange={(e) => setEntryAmt(e.target.value)} 
+  placeholder="Amount" 
+  className="flex-1 p-4 rounded-xl bg-slate-800 text-white outline-none" 
+  inputMode="decimal" 
+/>
+
+
+              
               <select value={entryType} onChange={(e) => setEntryType(e.target.value)} className="w-32 p-4 rounded-xl bg-slate-800 text-white">
                 <option value="expense">Out</option>
                 <option value="income">In</option>
