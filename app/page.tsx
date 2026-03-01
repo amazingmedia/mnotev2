@@ -12,6 +12,25 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const [user, setUser] = useState<any>(null);
+
+
+// Notification States
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | null }>({ message: '', type: null });
+
+  // Notification ပြပြီး ၃ စက္ကန့်နေရင် ပြန်ဖျောက်မယ်
+  useEffect(() => {
+    if (toast.type) {
+      const timer = setTimeout(() => setToast({ message: '', type: null }), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+  };
+
+
+  
   
   // App States
   const [books, setBooks] = useState<string[]>([]);
